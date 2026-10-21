@@ -167,11 +167,35 @@ class ThermalHATWrapper(nn.Module):
             import subprocess
             print("Auto-installing basicsr (--no-deps)...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "basicsr"])
+
+        # Patch basicsr.utils.matlab_functions.rgb2ycbcr if missing (HAT compatibility fix)
+        try:
+            import basicsr.utils.matlab_functions as mf
+            if not hasattr(mf, 'rgb2ycbcr'):
+                try:
+                    from basicsr.utils.color import rgb2ycbcr
+                    mf.rgb2ycbcr = rgb2ycbcr
+                except Exception:
+                    mf.rgb2ycbcr = getattr(mf, 'bgr2ycbcr', lambda x, *args, **kwargs: x)
+        except Exception:
+            pass
             
         try:
             from hat.archs.hat_arch import HAT
-        except ImportError as e:
-            raise ImportError(f"Could not import HAT from {hat_dir}. Error: {e}")
+        except Exception as e:
+            # Fallback to direct file loading to bypass hat/__init__.py and unused dataset loaders
+            try:
+                import importlib.util
+                hat_arch_path = os.path.join(hat_dir, "hat", "archs", "hat_arch.py")
+                if os.path.exists(hat_arch_path):
+                    spec = importlib.util.spec_from_file_location("hat_arch_standalone", hat_arch_path)
+                    hat_arch_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(hat_arch_mod)
+                    HAT = hat_arch_mod.HAT
+                else:
+                    raise ImportError(f"Could not find hat_arch.py in {hat_dir}")
+            except Exception as e2:
+                raise ImportError(f"Could not import HAT from {hat_dir}. Error: {e} | Fallback Error: {e2}")
             
         # Initialize a "Small" HAT variant to save VRAM and train faster on Colab
         # A standard HAT uses depths=(6,6,6,6,6,6) and embed_dim=180. We scale it down slightly.
