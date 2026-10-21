@@ -149,13 +149,24 @@ class ThermalHATWrapper(nn.Module):
         if hat_dir not in sys.path:
             sys.path.insert(0, hat_dir)
             
-        # Monkey-patch torchvision to fix compatibility issues with basicsr==1.3.4.9
+        # Monkey-patch torchvision to fix compatibility issues with basicsr
         # In newer torchvision versions, functional_tensor was removed.
         try:
             import torchvision.transforms.functional_tensor
         except ImportError:
-            import torchvision.transforms.functional as F_vision
-            sys.modules['torchvision.transforms.functional_tensor'] = F_vision
+            try:
+                import torchvision.transforms.functional as F_vision
+                sys.modules['torchvision.transforms.functional_tensor'] = F_vision
+            except Exception:
+                pass
+
+        # Ensure basicsr is available (auto-install with --no-deps to prevent cloud environment conflicts)
+        try:
+            import basicsr
+        except ImportError:
+            import subprocess
+            print("Auto-installing basicsr (--no-deps)...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "basicsr"])
             
         try:
             from hat.archs.hat_arch import HAT

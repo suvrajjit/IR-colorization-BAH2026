@@ -2,13 +2,21 @@ import os
 import sys
 
 def ensure_dependencies():
-    for pkg, mod in [("pytorch-msssim", "pytorch_msssim"), ("transformers", "transformers"), ("einops", "einops"), ("tifffile", "tifffile")]:
+    packages = [
+        ("pytorch-msssim", "pytorch_msssim"),
+        ("transformers", "transformers"),
+        ("einops", "einops"),
+        ("tifffile", "tifffile"),
+        ("basicsr", "basicsr")
+    ]
+    for pkg, mod in packages:
         try:
             __import__(mod)
         except ImportError:
             import subprocess
             print(f"Installing missing package: {pkg}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pkg])
+            extra_args = ["--no-deps"] if pkg == "basicsr" else []
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-q"] + extra_args + [pkg])
 
 ensure_dependencies()
 
