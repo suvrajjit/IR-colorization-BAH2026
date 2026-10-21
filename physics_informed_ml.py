@@ -63,8 +63,11 @@ def _robust_normalize_chw(array: np.ndarray, valid_mask: np.ndarray, low: float 
     normalized = (array - lo) / (hi - lo + 1e-6)
     return np.clip(normalized, 0.0, 1.0).astype(np.float32)
 
+# Module-level cache to prevent repeated slow directory scans over Kaggle network mounts
+_CACHED_SAMPLES: Dict[str, list] = {}
+
 class ISROPhysicsDataset(Dataset):
-    """a
+    """
     Custom PyTorch Dataset for loading Landsat 9 image patches.
     Supports Stage 1 (Super-Resolution) and Stage 2 (Colorization) processing,
     integrating centralized metadata for physics-informed machine learning.
@@ -108,18 +111,32 @@ class ISROPhysicsDataset(Dataset):
         else:
             logger.warning(f"Metadata JSON not found at {metadata_json_path}. Using fallback defaults.")
 
-        # Recursively search for directories containing required numpy arrays
-        all_samples = []
-        for root_dir, _, files in os.walk(patches_dir):
-            if stage == "super_res":
-                has_required = "tir_200m.npy" in files and "tir_100m_512.npy" in files
-            else:  # stage == "colorization"
-                has_required = "tir_100m_512.npy" in files and "rgb_100m_512.npy" in files
+        # Fast 2-level directory scan to avoid slow network FUSE os.walk on cloud/Kaggle mounts
+        global _CACHED_SAMPLES
+        if patches_dir in _CACHED_SAMPLES:
+            all_samples = _CACHED_SAMPLES[patches_dir]
+        else:
+            all_samples = []
+            try:
+                for scene in sorted(os.listdir(patches_dir)):
+                    scene_path = os.path.join(patches_dir, scene)
+                    if os.path.isdir(scene_path):
+                        for sample in sorted(os.listdir(scene_path)):
+                            sample_path = os.path.join(scene_path, sample)
+                            if os.path.isdir(sample_path):
+                                all_samples.append(sample_path)
+            except Exception as e:
+                logger.warning(f"Fast directory scan encountered an error: {e}. Falling back to os.walk.")
+                all_samples = []
 
-            if has_required:
-                all_samples.append(root_dir)
+            # Fallback only if direct scan found nothing
+            if len(all_samples) == 0:
+                for root_dir, _, files in os.walk(patches_dir):
+                    if "tir_200m.npy" in files or "tir_100m_512.npy" in files:
+                        all_samples.append(root_dir)
 
-        all_samples.sort()
+            all_samples.sort()
+            _CACHED_SAMPLES[patches_dir] = all_samples
 
         if split != "all" and len(all_samples) > 0:
             # Group samples by scene/product to guarantee zero spatial leakage across tiles
