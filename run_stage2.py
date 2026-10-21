@@ -1,6 +1,17 @@
 import os
 import sys
 
+def ensure_dependencies():
+    for pkg, mod in [("pytorch-msssim", "pytorch_msssim"), ("transformers", "transformers"), ("einops", "einops"), ("tifffile", "tifffile")]:
+        try:
+            __import__(mod)
+        except ImportError:
+            import subprocess
+            print(f"Installing missing package: {pkg}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pkg])
+
+ensure_dependencies()
+
 def get_patches_dir():
     candidates = [
         "/kaggle/input/datasets/suvrajitdeysuv/isro-thermal-patches/output/output/patches",
