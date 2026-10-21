@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Large model weights & checkpoints
+*.safetensors
+*.pth
+*.pt
+*.bin
+checkpoints/
+output/
+*.log
+
+# Results and temp files
+ablation_results.json

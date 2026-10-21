@@ -1,6 +1,7 @@
 import os
 import argparse
 import subprocess
+import sys
 from utils.logging_utils import setup_logging
 from utils.file_utils import find_file
 
@@ -8,7 +9,7 @@ def run_script(script_name, logger, *args):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     scripts_dir = os.path.join(base_dir, 'scripts')
     script_path = os.path.join(scripts_dir, script_name)
-    command = ['python', script_path] + list(args)
+    command = [sys.executable, script_path] + list(args)
     logger.info(f"Running: {' '.join(command)}")
     try:
         # Add the project root to PYTHONPATH so scripts can import from utils
@@ -80,13 +81,17 @@ def main():
             downscaled_tir_200m = os.path.join(output_downscale_dir, f'{file_prefix}_tir_200m.tif')
             run_script('downscale.py', logger, band10_path, downscaled_tir_200m, '6.67')
 
-            # 5. Create Coregistered Patches
-            run_script('create_patches.py', logger, '--input_dir', output_downscale_dir, '--output_dir', output_patches_dir)
-
-            logger.info(f"Successfully generated dataset samples for {product_id}")
+            logger.info(f"Successfully processed and downscaled bands for {product_id}")
 
         except Exception as e:
             logger.error(f"Error processing {product_id}: {e}")
+
+    # 5. Create Coregistered Patches for all products at once
+    logger.info("Generating coregistered patches for all downscaled products...")
+    try:
+        run_script('create_patches.py', logger, '--input_dir', output_downscale_dir, '--output_dir', output_patches_dir)
+    except Exception as e:
+        logger.error(f"Error running create_patches.py: {e}")
 
     logger.info("Dataset generation finished. Samples available in output/patches")
 

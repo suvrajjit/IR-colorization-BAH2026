@@ -55,8 +55,10 @@ def create_patches(input_root, output_root):
     products = set()
     for f in all_files:
         filename = os.path.basename(f)
-        # Assume filename format: {product_id}_...
-        product_id = filename.split('_')[0]
+        if '_product' in filename:
+            product_id = filename.split('_product')[0]
+        else:
+            product_id = filename.split('_')[0]
         products.add(product_id)
 
     logger.info(f"Found {len(products)} products in {input_root}")

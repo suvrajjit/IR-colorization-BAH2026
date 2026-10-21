@@ -12,10 +12,13 @@ def download_landsat_data(product_id, bands, start_date, end_date, output_path, 
     else:
         ee.Initialize()
 
+    india = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017") \
+        .filter(ee.Filter.eq('country_na', 'India'))
+
     collection = ee.ImageCollection('LANDSAT/LC09/C02/T1_L2') \
+        .filterBounds(india) \
         .filterDate(start_date, end_date) \
-        .filterMetadata('WRS_PATH', 'equals', 20) \
-        .filterMetadata('WRS_ROW', 'equals', 30) \
+        .filter(ee.Filter.lt('CLOUD_COVER', 20)) \
         .select(bands)
 
     image = collection.first()
@@ -24,9 +27,11 @@ def download_landsat_data(product_id, bands, start_date, end_date, output_path, 
         logger.info(f'Attempting to download image for product ID: {product_id} with bands {bands} to {output_path}')
         os.makedirs(output_path, exist_ok=True)
         filename_prefix = f'landsat9_{product_id}'
-
+        dest_filename = os.path.join(output_path, f'{filename_prefix}.tif')
+        # Define a 60km x 60km ROI centered on the scene to avoid Earth Engine's download size limit
+        roi = image.geometry().centroid().buffer(30000).bounds()
         try:
-            geemap.ee_export_image(image, output_path, scale=30, region=image.geometry().bounds(), file_per_band=True, filename_prefix=filename_prefix)
+            geemap.ee_export_image(image, dest_filename, scale=30, region=roi, file_per_band=True)
             logger.info(f'Individual band images successfully downloaded to {output_path}')
         except Exception as e:
             logger.error(f"Error during direct download using geemap: {e}")
