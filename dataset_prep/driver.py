@@ -2,6 +2,12 @@ import os
 import argparse
 import subprocess
 import sys
+
+# Ensure project root is in sys.path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from utils.logging_utils import setup_logging
 from utils.file_utils import find_file
 
@@ -12,9 +18,9 @@ def run_script(script_name, logger, *args):
     command = [sys.executable, script_path] + list(args)
     logger.info(f"Running: {' '.join(command)}")
     try:
-        # Add the project root to PYTHONPATH so scripts can import from utils
+        # Add both project root and dataset_prep to PYTHONPATH so scripts can import from utils
         env = os.environ.copy()
-        env['PYTHONPATH'] = base_dir + os.pathsep + env.get('PYTHONPATH', '')
+        env['PYTHONPATH'] = project_root + os.pathsep + base_dir + os.pathsep + env.get('PYTHONPATH', '')
         result = subprocess.run(command, capture_output=True, text=True, check=True, env=env)
         if result.stdout:
             logger.info(f"STDOUT from {script_name}:\n{result.stdout}")
@@ -27,7 +33,7 @@ def run_script(script_name, logger, *args):
         raise e
 
 def main():
-    parser = argparse.ArgumentParser(description='IR-Colorization Dataset Generation Baseline')
+    parser = argparse.ArgumentParser(description='IRGB Dataset Generation & Patch Extraction Pipeline')
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))

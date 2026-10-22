@@ -5,7 +5,8 @@ from run_ablation import print_ablation_table
 def main():
     candidates = [
         "/kaggle/working/ablation_results.json",
-        "ablation_results.json"
+        "ablation_results.json",
+        "data/ablation_results.json"
     ]
     file_path = None
     for c in candidates:
@@ -14,10 +15,10 @@ def main():
             break
 
     if not file_path:
-        print("❌ No ablation_results.json found yet. Run run_stage1.py or run_stage2.py first.")
+        print("[!] No ablation_results.json found yet. Run run_stage1.py or run_stage2.py first.")
         return
 
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     print(f"Loaded results from: {file_path}")

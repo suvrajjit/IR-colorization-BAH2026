@@ -1,168 +1,163 @@
-# 🚀 Bhartiya Antriksh Hackathon (BAH) 2026
+# IRGB: Infrared Image Colorization and Enhancement for Improved Object Interpretation in Satellite Imagery
 
-## Physics-Informed Thermal-to-RGB Super-Resolution & Colorization Pipeline
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-Welcome to the **Bhartiya Antriksh Hackathon 2026** codebase. This repository provides a state-of-the-art, physics-informed two-stage deep learning pipeline designed to upscale raw single-channel Thermal Infrared (TIR) satellite imagery (Landsat 9 Band 10) and translate it into high-resolution, photorealistic, and structurally aligned 3-channel RGB imagery.
-
----
-
-## 📌 Architecture Overview
-
-The system is split into two sequential deep learning stages to handle upscaling and modality translation independently:
-
-```
-[Input: Raw 200m TIR] 
-       │
-       ▼
-┌──────────────────────────────────────────────┐
-│  STAGE 1: Super-Resolution (HAT)             │  ◄── Physics Energy Loss (Conservation)
-└──────────────────────────────────────────────┘
-       │
-       ▼
- [High-Res 100m TIR]
-       │
-       ▼
-┌──────────────────────────────────────────────┐
-│  STAGE 2: Colorization (ViT-Huge + Restormer)│  ◄── Geospatial FiLM Modulation
-└──────────────────────────────────────────────┘  ◄── Gradient Alignment Loss (No Hallucinations)
-       │
-       ▼
-[Output: 3-Channel 100m RGB]
-```
+Official PyTorch implementation and ablation suite for the research paper:  
+**"IRGB: Infrared Image Colorization and Enhancement for Improved Object Interpretation in Satellite Imagery"**  
+*Suvrajit Dey, Swamantak Roy, Sumit Kumar Tetarave, Satya Ranjan Dash, and Rishikesh Sahay*
 
 ---
 
-## 🔍 Stage 1: Physics-Informed Super-Resolution (200m $\to$ 100m)
+## 📌 Abstract
 
-The objective of Stage 1 is to upscale the low-resolution 200m thermal band to a high-resolution 100m band, restoring sub-pixel boundaries without introducing artificial thermal noise.
+Thermal infrared (TIR) satellite imagery is indispensable for monitoring thermal anomalies, wildfire tracking, urban heat-island analysis, and volcanic monitoring. However, its single-band grayscale representation and coarse spatial resolution limit object-level interpretability. 
 
-### 1. Architecture: Hybrid Attention Transformer (`ThermalHATWrapper`)
-Stage 1 employs a **Hybrid Attention Transformer (HAT)**. HAT combines the local representation power of convolutions with the global modeling capabilities of self-attention blocks. It is wrapped in `ThermalHATWrapper` to process single-channel floating-point thermal data.
+**IRGB** is a two-stage, physics-informed, metadata-conditioned deep learning framework that enhances Landsat 9 Band 10 thermal data into high-resolution, photorealistic, and structurally faithful RGB visualizations:
+1. **Stage 1 (Thermal Super-Resolution, 200m $\to$ 100m):** Employs a single-channel Hybrid Attention Transformer (HAT) constrained by a top-of-atmosphere radiance energy conservation loss ($\mathcal{L}_{phy}$) to prevent unphysical thermal artifacts.
+2. **Stage 2 (Context-Conditioned Colorization, 100m TIR $\to$ 100m RGB):** Combines a Vision Transformer (ViT-Huge) global context encoder, a multi-scale CNN skip encoder, and a Restormer decoder, conditioned on solar geometry and geolocation metadata via Feature-wise Linear Modulation (FiLM).
 
-### 2. Physics-Enforced Energy Conservation Loss
-To prevent the network from violating thermodynamics by fabricating or destroying heat energy, Stage 1 uses a **radiance-space energy conservation constraint**:
-* **Radiance Conversion**: Using calibration parameters (`radiance_mult` and `radiance_add`) parsed from the Landsat metadata XML files, pixel digital numbers (DN) are mapped to physical radiance values:
-  $$\text{Radiance} = (\text{Pixel Value} \times \text{mult}) + \text{add}$$
-* **Energy Integration**: The predicted high-resolution $512\times512$ radiance map is downscaled to $256\times256$ via $2\times2$ average pooling (`F.avg_pool2d`), simulating the sensor's physical integration window.
-* **Loss Function**: The Mean Squared Error (MSE) between the downsampled predicted radiance and the raw 200m input radiance is minimized, forcing the output to obey energy conservation laws.
+```
+               STAGE 1: Physics-Informed Super-Resolution
+[Raw 200m TIR] ──► [Hybrid Attention Transformer (HAT)] ──► [Enhanced 100m TIR]
+                           │
+                           └── Constrained by Radiance Energy Loss (L_phy)
+
+               STAGE 2: Geospatial-Conditioned Colorization
+[Enhanced 100m TIR] ──► [ViT-Huge Global + Multi-Scale CNN Skips] ──► [Restormer Decoder] ──► [100m 3-Channel RGB]
+                                      ▲                                      ▲
+                                      │                                      │
+                         [Solar & Coordinate Metadata] ──────────► [FiLM Modulation]
+```
 
 ---
 
-## 🎨 Stage 2: Geospatial-Conditioned Colorization (100m Thermal $\to$ 100m RGB)
+## 📊 Ablation Study (Paper Table 1)
 
-Stage 2 translates the single-channel high-resolution thermal image into a 3-channel visible RGB image.
+Quantitative evaluation on held-out test scenes across India (scene-level disjoint split, seed 42):
 
-### 1. Hybrid U-Net Encoder-Decoder (`ThermalColorizerViT`)
-The model is structured as a hybrid network blending a global Transformer backbone with a local CNN:
-* **Global Encoder (ViT-Huge)**: The input thermal image is passed to a massive 632M parameter `ViT-Huge` model, which uses global self-attention across 1024 patches to extract atmospheric and contextual features.
-* **Local CNN Encoder**: A parallel CNN encoder downsamples the input and extracts sharp local spatial maps (`c1` to `c4`). These features are bypassed directly to the decoder via **U-Net skip connections**, ensuring that spatial boundaries and sharp lines are preserved.
-
-### 2. Feature-wise Linear Modulation (FiLM)
-Thermal-to-RGB colorization is a "one-to-many" problem (e.g., a cold reading could be a shaded valley or a water body). To resolve this ambiguity, we inject geospatial and solar metadata directly into the network's latent space:
-* **Inputs**: Center Latitude, Center Longitude, Sun Elevation, and Sun Azimuth.
-* **Mechanism**: A Multi-Layer Perceptron (`self.metadata_mlp`) maps these 4 parameters to a 2560-dimensional vector, which is split into scale ($\gamma$) and shift ($\beta$) vectors.
-* **Modulation**: The ViT spatial feature maps are modulated before entering the decoder:
-  $$X_{\text{modulated}} = X_{\text{spatial}} \times \gamma + \beta$$
-
-### 3. Metadata Dropout (Demo Robustness)
-To prevent the model from failing if metadata is missing during inference, we implement a **20% Metadata Dropout** during training. 
-* 20% of the time, the model ignores the metadata.
-* This forces the decoder to learn a robust, generalized "average" colorization strategy, while still exploiting specific geographic/solar priors when they are provided.
-
-### 4. Lightweight Restormer Decoder
-To process the bottleneck features, we implement a **Restormer Attention Decoder**:
-* **Attention Mechanism**: Uses Multi-Dconv Head Transposed Attention (MDTA) and Gated Dconv Feed-forward Networks (GDFN) at lower resolutions ($64\times64$ to $256\times256$) to handle global color and light propagation.
-* **VRAM Guardrail**: At the highest spatial resolution ($512\times512$), the model automatically falls back to local **Double Conv** layers. This cuts VRAM usage by over 40%, ensuring the model fits comfortably within standard 16GB GPU memory limits (such as a single Tesla T4).
+| Stage | Variant | PSNR (dB) | SSIM | Rad. RMSE | Chrom. err. | Key Finding |
+| :---: | :--- | :---: | :---: | :---: | :---: | :--- |
+| **1** | **Full ($\mathcal{L}_{pixel} + \mathcal{L}_{phy} + \mathcal{L}_{ssim}$)** | **23.25 $\pm$ 10.79** | **0.800 $\pm$ 0.257** | **0.3446** | n/a | **Lowest physical energy error** |
+| 1 | w/o $\mathcal{L}_{phy}$ | 23.23 $\pm$ 11.43 | 0.789 $\pm$ 0.271 | 0.3979 | n/a | Radiance RMSE increases by $+15.5\%$ |
+| 1 | w/o $\mathcal{L}_{ssim}$ | 23.12 $\pm$ 10.53 | 0.795 $\pm$ 0.266 | 0.3283 | n/a | Structural similarity drops |
+| 1 | Plain HAT replaced by CNN SR | 25.94 $\pm$ 9.34 | 0.852 $\pm$ 0.182 | 0.3530 | n/a | Pixel baseline without transformer attention |
+| \hline | | | | | | |
+| **2** | **Full IRGB** | **15.44 $\pm$ 3.65** | **0.623 $\pm$ 0.175** | n/a | **9.53$^\circ$ $\pm$ 5.42$^\circ$** | **Best color & structural balance** |
+| 2 | w/o metadata (no FiLM) | 14.21 $\pm$ 3.44 | 0.588 $\pm$ 0.168 | n/a | 10.77$^\circ$ $\pm$ 6.07$^\circ$ | Color drift without solar context |
+| 2 | Metadata concatenated to input | 10.85 $\pm$ 3.66 | 0.353 $\pm$ 0.207 | n/a | 22.21$^\circ$ $\pm$ 14.04$^\circ$ | Input channels corrupt spatial convolutions |
+| 2 | w/o $\mathcal{L}_{grad}$ | 15.07 $\pm$ 2.75 | 0.625 $\pm$ 0.159 | n/a | 9.02$^\circ$ $\pm$ 3.48$^\circ$ | Boundary correlation degrades |
+| 2 | w/o $\mathcal{L}_{chrom}$ | 14.38 $\pm$ 3.13 | 0.602 $\pm$ 0.187 | n/a | 13.93$^\circ$ $\pm$ 10.82$^\circ$ | $+46\%$ surge in angular chromatic error |
+| 2 | w/o I-JEPA global branch | 15.52 $\pm$ 2.59 | 0.618 $\pm$ 0.158 | n/a | 9.08$^\circ$ $\pm$ 4.40$^\circ$ | Loss of global scene context |
+| 2 | w/o CNN skip branch | 12.84 $\pm$ 2.82 | 0.377 $\pm$ 0.235 | n/a | 18.04$^\circ$ $\pm$ 11.09$^\circ$ | **Catastrophic structural collapse** |
 
 ---
 
-## ⚖️ Advanced Loss Formulations (Stage 2)
+## 🛠️ Repository Organization
 
-Stage 2 uses a compound loss function to enforce structural, color, and boundary correctness:
-
-1. **Cross-Modal Gradient Alignment Loss (Sobel Similarity)**:
-   * Converts the predicted RGB image to a single-channel Grayscale Luminance map: $\text{Luma} = 0.299R + 0.587G + 0.114B$.
-   * Applies horizontal and vertical **Sobel filters** to both the input thermal image and the predicted Luma map.
-   * Minimizes the **Cosine Distance** between these gradient vectors at every pixel. This mathematically locks the RGB boundaries to the thermal boundaries, preventing the model from hallucinating lines.
-2. **Chromatic Angle Loss**:
-   * Evaluates the **Cosine Similarity** of the $[R, G, B]$ vector at each pixel.
-   * By ignoring vector magnitude (brightness) and focusing on the vector direction (chromatic angle/hue), it heavily penalizes flat gray/sepia predictions, forcing the model to output vibrant, realistic colors.
-3. **Padding Penalty**:
-   * Extracts the invalid rotated margin mask (`1.0 - valid_mask`).
-   * Forcefully penalizes and zeroes out any non-black predictions in this region, eliminating glowing diagonal artifacts at the satellite swath boundaries.
-
----
-
-## 🛰️ Large-Image Handling: Proposed Production Tiling & Stitching System
-
-When running inference on full, raw Landsat 9 scenes (which are too large to fit in GPU memory at once), the system implements a vectorized **Tiling, Stitching, and Feathering** approach.
+The repository separates the core training and evaluation suite from data curation tools:
 
 ```
-[Raw Large GeoTIFF] 
-       │
-       ▼  (Reflect Pad & PyTorch Unfold)
-┌──────────────────────────────────────────────┐
-│  Overlapping Patches (e.g. 512x512, step 448)│
-└──────────────────────────────────────────────┘
-       │
-       ▼  (GPU Batch Inference)
-┌──────────────────────────────────────────────┐
-│  Colorized RGB Patches                       │
-└──────────────────────────────────────────────┘
-       │
-       ▼  (Stitch + Cosine Window Blend)
-[Seamless High-Res RGB TIFF]
-```
-
-### 1. Reflective Padding
-The raw image is padded using reflection (`np.pad(..., mode="reflect")`) so its dimensions are perfectly divisible by the model patch size ($256$ for Stage 1 or $512$ for Stage 2). Reflective padding ensures that border tiles do not suffer from edge distortion.
-
-### 2. Slicing with PyTorch `.unfold()`
-The large padded tensor is sliced into overlapping windows in parallel using PyTorch's native `.unfold()` method:
-```python
-# Slices the width and height into patches of size 'patch_size' with overlap
-windows = image_tensor.unfold(2, patch_size, stride).unfold(3, patch_size, stride)
-```
-This is fully vectorized and runs directly in memory without slow pixel loops.
-
-### 3. Overlapping & Feathered Blending (Seamless Stitching)
-To prevent boundary seams (grid lines) where adjacent patches meet, the sliding window operates with an overlap (e.g., a stride of $448$ for a patch size of $512$, giving a 64-pixel overlap).
-* During reconstruction, the system initializes a canvas accumulator and a weight accumulator.
-* For each patch, we multiply it by a 2D **Cosine/Gaussian Window Function** before adding it to the canvas. The window function assigns a weight of $1.0$ at the center of the patch and smoothly drops to $0.0$ at the borders.
-* The final image is obtained by dividing the canvas accumulator by the weight accumulator. This completely feathers the overlapping regions, resulting in a seamless, professional output.
-
----
-
-## 🛠️ Project Structure
-
-```
-IR-colorization-BAH2026/
+IRGB/
+├── models.py               # Core architectures: ThermalHATWrapper, ThermalColorizerViT, Restormer
+├── losses.py               # Physics energy loss, Chromaticity angular loss, Sobel alignment
+├── physics_informed_ml.py  # IRGBDataset loader, Planck radiance conversion, split manager
+├── train.py                # End-to-end training pipeline for Stage 1 & Stage 2
+├── run_ablation.py         # Master runner for reproducing Table 1 ablations
+├── run_stage1.py           # 1-command runner for Stage 1 experiments
+├── run_stage2.py           # 1-command runner for Stage 2 experiments
+├── show_results.py         # Formats ablation_results.json into Markdown and LaTeX tables
+├── paper_insertions.tex    # Pre-compiled LaTeX table and interpretation paragraphs
+├── PAPER_INSERTIONS.md     # Markdown reference for paper writing
 │
 ├── data/
-│   └── metadata_mapping.json     # Compiled geospatial/solar metadata mapping
+│   └── metadata_mapping.json # Radiometric calibration (mult/add), solar angles, lat/lon
 │
-├── models.py                     # ThermalHATWrapper, ThermalColorizerViT, Restormer
-├── losses.py                     # Stage1PhysicsLoss, Stage2ColorizationLoss
-├── physics_informed_ml.py        # Dataset class, CrossModalGradientAlignmentLoss
-├── preprocess_metadata.py        # Parses MTL.xml files to extract lat/lon & solar angles
-├── train.py                      # Main end-to-end training script (Stage 1 & Stage 2)
-├── driver.py                     # Baseline patch extraction driver
-└── README.md                     # Technical reference readme
+├── dataset_prep/           # Raw satellite data preprocessing & patch tiling pipeline
+│   ├── README.md           # Dataset preparation documentation
+│   ├── driver.py           # Automated patch extraction driver
+│   ├── preprocess_metadata.py # Extracts metadata from Landsat 9 MTL.xml
+│   ├── create_output_zip.py   # Dataset archiving utility
+│   └── scripts/            # Band composite, GDAL downscaling, and tiling scripts
+│
+├── utils/                  # Shared file utilities, logging, and visualizers
+└── tests/                  # Unit tests (loss verification)
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quickstart
 
-### 1. Preprocess Metadata
-If you have new Landsat 9 folders containing `_MTL.xml` files, run the preprocessor to generate the updated geospatial database:
+### 1. Installation
+
 ```bash
-python preprocess_metadata.py --input_dir /path/to/landsat/products --output_json data/metadata_mapping.json
+git clone https://github.com/suvrajjit/IR-colorization-BAH2026.git
+cd IR-colorization-BAH2026
+pip install -r requirements.txt
 ```
 
-### 2. Train the Pipeline
-To train both Stage 1 and Stage 2 end-to-end on your dataset (e.g., on Kaggle or a local workstation):
+### 2. Reproduce Table 1 Ablation Study
+
+To reproduce the experiments on Kaggle or a local GPU workstation:
+
+**Run Stage 1 Super-Resolution Suite (Rows 1–4):**
 ```bash
-python train.py --stage both --epochs 50 --batch_size 4 --patches_dir /path/to/patches
+python run_stage1.py --epochs 25 --batch_size 4
 ```
-*Note: The script automatically detects available GPUs and applies `nn.DataParallel` with native gradient checkpointing.*
+
+**Run Stage 2 Colorization Suite (Rows 5–11):**
+```bash
+python run_stage2.py --epochs 5 --batch_size 4
+```
+*(Or evaluate individual variants: `--variant full`, `wo_film`, `concat_meta`, `wo_grad`, `wo_chrom`, `wo_vit`, `wo_skips`)*
+
+**Display Table 1 & LaTeX Code:**
+```bash
+python show_results.py
+```
+
+### 3. Full End-to-End Model Training
+
+To train the complete pipeline end-to-end:
+```bash
+# Stage 1: Super-Resolution (HAT)
+python train.py --stage super_res --epochs 50 --batch_size 4 --patches_dir /path/to/patches
+
+# Stage 2: Context-Conditioned Colorization (ViT + FiLM + Restormer)
+python train.py --stage colorization --epochs 50 --batch_size 4 --patches_dir /path/to/patches
+```
+
+---
+
+## 🛰️ Dataset Preparation
+
+The dataset consists of 800 co-registered patch triplets (256×256 low-res TIR, 512×512 high-res TIR, 512×512 reference RGB) derived from Landsat 9 Collection 2 Level-2 products over the Indian subcontinent.
+
+To prepare the dataset from raw Landsat 9 GeoTIFF files:
+```bash
+cd dataset_prep
+python preprocess_metadata.py --input_dir /path/to/raw_landsat --output_json ../data/metadata_mapping.json
+python driver.py
+```
+See [`dataset_prep/README.md`](dataset_prep/README.md) for detailed instructions.
+
+---
+
+## 📖 Citation
+
+If you use this codebase or paper in your research, please cite:
+
+```bibtex
+@article{dey2026irgb,
+  title={IRGB: Infrared Image Colorization and Enhancement for Improved Object Interpretation in Satellite Imagery},
+  author={Dey, Suvrajit and Roy, Swamantak and Tetarave, Sumit Kumar and Dash, Satya Ranjan and Sahay, Rishikesh},
+  year={2026}
+}
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

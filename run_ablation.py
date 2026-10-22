@@ -450,55 +450,68 @@ def run_stage2_ablation(
 
 
 def print_ablation_table(results_dict: Dict[str, Any]):
-    """
-    Renders results into Markdown and LaTeX Table 1 formats.
-    """
+    """Renders results into Markdown and LaTeX Table 1 formats."""
     print("\n" + "="*80)
     print("TABLE 1: ABLATION OF IRGB COMPONENTS ON HELD-OUT TEST SCENES")
     print("="*80)
 
     md_header = "| Stage | Variant | PSNR (dB) | SSIM | Rad. RMSE | Chrom. err. |\n| :---: | :--- | :---: | :---: | :---: | :---: |"
     md_rows = []
-
     latex_rows = []
 
     # Stage 1 rows
     for key, cfg in STAGE1_VARIANTS.items():
         res = results_dict.get(f"stage1_{key}")
         if res:
-            psnr_str = f"{res['psnr_mean']:.2f} ± {res['psnr_std']:.2f}"
-            ssim_str = f"{res['ssim_mean']:.3f} ± {res['ssim_std']:.3f}"
+            psnr_str = f"{res['psnr_mean']:.2f} +/- {res['psnr_std']:.2f}"
+            ssim_str = f"{res['ssim_mean']:.3f} +/- {res['ssim_std']:.3f}"
             rad_str = f"{res['rad_rmse_mean']:.4f}"
-            chrom_str = "n/a"
+            l_psnr = f"{res['psnr_mean']:.2f} $\\pm$ {res['psnr_std']:.2f}"
+            l_ssim = f"{res['ssim_mean']:.3f} $\\pm$ {res['ssim_std']:.3f}"
+            l_rad = f"{res['rad_rmse_mean']:.4f}"
+            if key == "full":
+                l_rad = f"\\textbf{{{l_rad}}}"
+            elif key == "cnn_sr":
+                l_psnr = f"\\textbf{{{l_psnr}}}"
+                l_ssim = f"\\textbf{{{l_ssim}}}"
         else:
-            psnr_str, ssim_str, rad_str, chrom_str = "[]", "[]", "[]", "n/a"
-        md_rows.append(f"| 1 | {cfg['description']} | {psnr_str} | {ssim_str} | {rad_str} | {chrom_str} |")
-        latex_rows.append(f"1 & {cfg['description']} & {psnr_str} & {ssim_str} & {rad_str} & {chrom_str} \\\\")
+            psnr_str, ssim_str, rad_str = "[ ]", "[ ]", "[ ]"
+            l_psnr, l_ssim, l_rad = "[ ]", "[ ]", "[ ]"
+        md_rows.append(f"| 1 | {cfg['description']} | {psnr_str} | {ssim_str} | {rad_str} | n/a |")
+        latex_rows.append(f"1 & {cfg['description']} & {l_psnr} & {l_ssim} & {l_rad} & n/a \\\\")
 
     # Stage 2 rows
     for key, cfg in STAGE2_VARIANTS.items():
         res = results_dict.get(f"stage2_{key}")
         if res:
-            psnr_str = f"{res['psnr_mean']:.2f} ± {res['psnr_std']:.2f}"
-            ssim_str = f"{res['ssim_mean']:.3f} ± {res['ssim_std']:.3f}"
-            rad_str = "n/a"
-            chrom_str = f"{res['chrom_err_mean']:.2f}° ± {res['chrom_err_std']:.2f}°"
+            psnr_str = f"{res['psnr_mean']:.2f} +/- {res['psnr_std']:.2f}"
+            ssim_str = f"{res['ssim_mean']:.3f} +/- {res['ssim_std']:.3f}"
+            chrom_str = f"{res['chrom_err_mean']:.2f} deg +/- {res['chrom_err_std']:.2f} deg"
+            l_psnr = f"{res['psnr_mean']:.2f} $\\pm$ {res['psnr_std']:.2f}"
+            l_ssim = f"{res['ssim_mean']:.3f} $\\pm$ {res['ssim_std']:.3f}"
+            l_chrom = f"{res['chrom_err_mean']:.2f}$^\\circ$ $\\pm$ {res['chrom_err_std']:.2f}$^\\circ$"
+            if key == "full":
+                l_psnr = f"\\textbf{{{l_psnr}}}"
+                l_ssim = f"\\textbf{{{l_ssim}}}"
+                l_chrom = f"\\textbf{{{l_chrom}}}"
         else:
-            psnr_str, ssim_str, rad_str, chrom_str = "[]", "[]", "n/a", "[]"
-        md_rows.append(f"| 2 | {cfg['description']} | {psnr_str} | {ssim_str} | {rad_str} | {chrom_str} |")
-        latex_rows.append(f"2 & {cfg['description']} & {psnr_str} & {ssim_str} & {rad_str} & {chrom_str} \\\\")
+            psnr_str, ssim_str, chrom_str = "[ ]", "[ ]", "[ ]"
+            l_psnr, l_ssim, l_chrom = "[ ]", "[ ]", "[ ]"
+        md_rows.append(f"| 2 | {cfg['description']} | {psnr_str} | {ssim_str} | n/a | {chrom_str} |")
+        latex_rows.append(f"2 & {cfg['description']} & {l_psnr} & {l_ssim} & n/a & {l_chrom} \\\\")
 
     print(md_header)
     for r in md_rows:
         print(r)
 
     print("\n--- LaTeX Code for Paper (Table 1) ---")
-    print(r"\begin{table}[h]")
+    print(r"\begin{table}[t]")
     print(r"\centering")
-    print(r"\caption{Ablation of IRGB components on the held-out test scenes.}")
+    print(r"\caption{Ablation of IRGB components on the held-out test scenes. Stage 1 variants report thermal super-resolution results and Stage 2 variants report colorization results. Best values are in bold.}")
+    print(r"\label{tab:ablation}")
     print(r"\begin{tabular}{llcccc}")
     print(r"\hline")
-    print(r"Stage & Variant & PSNR (dB) & SSIM & Rad. RMSE & Chrom. err. \\")
+    print(r"Stage & Variant & PSNR (dB) & SSIM & Rad. RMSE & Chrom. err. \\\\")
     print(r"\hline")
     for lr in latex_rows:
         print(lr)
@@ -506,8 +519,6 @@ def print_ablation_table(results_dict: Dict[str, Any]):
     print(r"\end{tabular}")
     print(r"\end{table}")
     print("="*80 + "\n")
-
-
 def main():
     parser = argparse.ArgumentParser(description="IRGB Paper Ablation Study Runner")
     parser.add_argument("--stage", type=str, default="1", choices=["1", "2", "both"])

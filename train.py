@@ -487,7 +487,7 @@ def train_pipeline(
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Train ISRO Physics-Informed ML Pipeline")
+    parser = argparse.ArgumentParser(description="Train IRGB Physics-Informed Satellite Pipeline")
     parser.add_argument("--stage", type=str, default="both", choices=["1", "2", "both"], help="Which stage to train")
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs to train")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training")

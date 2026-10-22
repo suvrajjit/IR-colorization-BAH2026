@@ -66,7 +66,7 @@ def _robust_normalize_chw(array: np.ndarray, valid_mask: np.ndarray, low: float 
 # Module-level cache to prevent repeated slow directory scans over Kaggle network mounts
 _CACHED_SAMPLES: Dict[str, list] = {}
 
-class ISROPhysicsDataset(Dataset):
+class IRGBDataset(Dataset):
     """
     Custom PyTorch Dataset for loading Landsat 9 image patches.
     Supports Stage 1 (Super-Resolution) and Stage 2 (Colorization) processing,
@@ -457,7 +457,7 @@ if __name__ == "__main__":
     patches_dir = os.path.join(base_dir, "output", "patches")
     metadata_json = os.path.join(base_dir, "data", "metadata_mapping.json")
 
-    logger.info("=== Testing ISROPhysicsDataset in 'super_res' mode ===")
+    logger.info("=== Testing IRGBDataset in 'super_res' mode ===")
     try:
         sr_dataset = ISROPhysicsDataset(
             patches_dir=patches_dir,
@@ -498,7 +498,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error during 'super_res' dataset testing: {e}", exc_info=True)
 
-    logger.info("\n=== Testing ISROPhysicsDataset in 'colorization' mode ===")
+    logger.info("\n=== Testing IRGBDataset in 'colorization' mode ===")
     try:
         color_dataset = ISROPhysicsDataset(
             patches_dir=patches_dir,
@@ -516,3 +516,7 @@ if __name__ == "__main__":
             
     except Exception as e:
         logger.error(f"Error during 'colorization' dataset testing: {e}", exc_info=True)
+
+
+# Backwards compatibility alias
+ISROPhysicsDataset = IRGBDataset

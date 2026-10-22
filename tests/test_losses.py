@@ -1,4 +1,11 @@
+import os
+import sys
 import torch
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from losses import Stage1PhysicsStructuralLoss, Stage2ColorizationLoss
 
 def test_losses():
@@ -16,14 +23,13 @@ def test_losses():
     print("Stage 1 Metrics:", metrics1)
 
     print("Testing Stage 2 Loss...")
-    loss2 = Stage2ColorizationLoss(lambda_ssim=0.5, lambda_psnr=0.01)
-    # Output of Sigmoid
+    loss2 = Stage2ColorizationLoss(lambda_ssim=0.5)
     pred_rgb = torch.rand(2, 3, 512, 512)
-    # Target from dataset
-    gt_rgb = torch.rand(2, 3, 512, 512) * 65535.0
+    gt_rgb = torch.rand(2, 3, 512, 512)
     loss_val2, metrics2 = loss2(pred_rgb, gt_rgb)
     print("Stage 2 Loss:", loss_val2.item())
     print("Stage 2 Metrics:", metrics2)
+    print("All loss tests passed!")
 
 if __name__ == "__main__":
     test_losses()
